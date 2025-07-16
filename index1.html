@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Chat & Upload</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl flex flex-col h-[90vh]">
+        <!-- Header -->
+        <div class="mb-4 pb-4 border-b border-gray-200">
+            <h1 class="text-3xl font-extrabold text-gray-800 text-center">
+                <span id="chatTypeDisplay" class="text-blue-600">Public</span> Chat & Upload
+            </h1>
+            <p class="text-sm text-gray-500 text-center mt-1">
+                Your User ID: <span id="userIdDisplay" class="font-semibold text-blue-700 break-all">Loading...</span>
+            </p>
+            <p class="text-xs text-gray-400 text-center mt-1">
+                (Share your User ID with others to chat!)
+            </p>
+        </div>
+
+        <!-- Private Chat Setup -->
+        <div class="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h2 class="text-lg font-semibold text-blue-800 mb-2">Start a Private Chat</h2>
+            <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                <input
+                    type="text"
+                    id="favoritePersonIdInput"
+                    class="flex-1 p-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
+                    placeholder="Enter Favorite Person's User ID"
+                />
+                <button
+                    id="startPrivateChatButton"
+                    class="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400 w-full sm:w-auto"
+                >
+                    Start Private Chat
+                </button>
+                <button
+                    id="clearPrivateChatButton"
+                    class="bg-gray-400 text-white p-2 rounded-lg hover:bg-gray-500 transition-colors duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-gray-300 w-full sm:w-auto"
+                >
+                    Back to Public
+                </button>
+            </div>
+        </div>
+
+        <!-- Message Display Area -->
+        <div id="messagesDisplay" class="flex-1 overflow-y-auto pr-2 mb-4 custom-scrollbar">
+            <p id="noMessagesText" class="text-center text-gray-500 mt-10">No messages yet. Start chatting!</p>
+            <!-- Messages will be appended here by JavaScript -->
+        </div>
+
+        <!-- Message Input -->
+        <div class="flex items-center space-x-3 mb-4">
+            <input
+                type="text"
+                id="newMessageInput"
+                class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Type your message..."
+            />
+            <button
+                id="sendMessageButton"
+                class="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3">
+            <input
+                id="fileInput"
+                type="file"
+                class="flex-1 p-2 border border-gray-300 rounded-lg text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            <button
+                id="uploadFileButton"
+                class="bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition-colors duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full sm:w-auto"
+                disabled
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Upload File
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // Ensure these global variables are defined in the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db;
+        let auth;
+        let currentUserId;
+        let isAuthReady = false;
+        let selectedFile = null;
+        let currentChatCollectionRef; // Stores the current collection reference (public or private)
+        let unsubscribeFromMessages = null; // To store the unsubscribe function for real-time listener
+
+        // Get DOM elements
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const messagesDisplay = document.getElementById('messagesDisplay');
+        const noMessagesText = document.getElementById('noMessagesText');
+        const newMessageInput = document.getElementById('newMessageInput');
+        const sendMessageButton = document.getElementById('sendMessageButton');
+        const fileInput = document.getElementById('fileInput');
+        const uploadFileButton = document.getElementById('uploadFileButton');
+        const favoritePersonIdInput = document.getElementById('favoritePersonIdInput');
+        const startPrivateChatButton = document.getElementById('startPrivateChatButton');
+        const clearPrivateChatButton = document.getElementById('clearPrivateChatButton');
+        const chatTypeDisplay = document.getElementById('chatTypeDisplay');
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        // Authenticate user
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userIdDisplay.textContent = currentUserId;
+                isAuthReady = true;
+                setupRealtimeListeners(); // Start with public chat by default
+            } else {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error signing in:", error);
+                    currentUserId = crypto.randomUUID(); // Fallback to random ID
+                    userIdDisplay.textContent = currentUserId;
+                    isAuthReady = true;
+                    setupRealtimeListeners(); // Start with public chat even if anonymous sign-in fails
+                }
+            }
+        });
+
+        /**
+         * Sets up the real-time listener for messages based on the target user ID.
+         * If targetUserId is null, it listens to the public chat.
+         * If targetUserId is provided, it creates a private chat room.
+         * @param {string|null} targetUserId - The User ID of the other person for a private chat.
+         */
+        function setupRealtimeListeners(targetUserId = null) {
+            // Unsubscribe from any previously active listener to avoid multiple listeners
+            if (unsubscribeFromMessages) {
+                unsubscribeFromMessages();
+                unsubscribeFromMessages = null; // Clear the reference
+            }
+
+            let collectionPath;
+            let chatModeText;
+
+            if (targetUserId && currentUserId && targetUserId !== currentUserId) {
+                // For private chat, create a unique chat room ID by sorting the two user IDs
+                const sortedUserIds = [currentUserId, targetUserId].sort();
+                const chatRoomId = sortedUserIds.join('_');
+                collectionPath = `artifacts/${appId}/privateChats/${chatRoomId}/messages`;
+                chatModeText = `Private Chat with: ${targetUserId.substring(0, 8)}...`;
+            } else {
+                // Default to public chat
+                collectionPath = `artifacts/${appId}/public/data/chatMessages`;
+                chatModeText = "Public";
+            }
+
+            // Update the display to show current chat mode
+            chatTypeDisplay.textContent = chatModeText;
+            currentChatCollectionRef = collection(db, collectionPath); // Set the global collection reference
+
+            const q = query(currentChatCollectionRef, orderBy('timestamp', 'asc'));
+
+            // Set up the new real-time listener
+            unsubscribeFromMessages = onSnapshot(q, (snapshot) => {
+                messagesDisplay.innerHTML = ''; // Clear existing messages
+                let hasMessages = false;
+                snapshot.forEach(doc => {
+                    hasMessages = true;
+                    const msg = doc.data();
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('flex', 'mb-3');
+                    messageElement.classList.add(msg.userId === currentUserId ? 'justify-end' : 'justify-start');
+
+                    let contentHtml = '';
+                    if (msg.text) {
+                        contentHtml = `<p class="break-words">${msg.text}</p>`;
+                    } else if (msg.fileName) {
+                        contentHtml = `
+                            <div class="mt-2 p-2 bg-white rounded-md text-gray-700 flex items-center space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.414L14.586 5A2 2 0 0115 6.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm0-3a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm0-3a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clip-rule="evenodd" />
+                                </svg>
+                                <a href="${msg.fileUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-words">
+                                    ${msg.fileName}
+                                </a>
+                                <span class="text-xs text-gray-500">
+                                    (${(msg.fileSize / 1024).toFixed(2)} KB)
+                                </span>
+                            </div>
+                        `;
+                    }
+
+                    const timestampText = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString() : 'Sending...';
+                    const senderText = msg.userId === currentUserId ? 'You' : msg.userId.substring(0, 8) + '...';
+
+                    messageElement.innerHTML = `
+                        <div class="max-w-[70%] p-3 rounded-lg shadow-md ${
+                            msg.userId === currentUserId
+                                ? 'bg-blue-500 text-white rounded-br-none'
+                                : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                        }">
+                            <p class="font-bold text-sm mb-1 break-words">${senderText}</p>
+                            ${contentHtml}
+                            <p class="text-xs mt-1 opacity-75">${timestampText}</p>
+                        </div>
+                    `;
+                    messagesDisplay.appendChild(messageElement);
+                });
+
+                if (hasMessages) {
+                    noMessagesText.classList.add('hidden');
+                } else {
+                    noMessagesText.classList.remove('hidden');
+                }
+
+                // Scroll to the latest message
+                messagesDisplay.scrollTop = messagesDisplay.scrollHeight;
+            }, (error) => {
+                console.error("Error fetching messages:", error);
+            });
+        }
+
+        // Event listener for sending messages
+        sendMessageButton.addEventListener('click', async () => {
+            const messageText = newMessageInput.value.trim();
+            if (messageText === '' || !db || !currentUserId || !currentChatCollectionRef) return;
+
+            try {
+                await addDoc(currentChatCollectionRef, { // Use the current chat collection
+                    userId: currentUserId,
+                    text: messageText,
+                    timestamp: serverTimestamp(),
+                });
+                newMessageInput.value = ''; // Clear input
+            } catch (error) {
+                console.error("Error sending message:", error);
+            }
+        });
+
+        // Allow sending message with Enter key
+        newMessageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessageButton.click();
+            }
+        });
+
+        // Event listener for file input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                selectedFile = e.target.files[0];
+                uploadFileButton.disabled = false; // Enable upload button
+            } else {
+                selectedFile = null;
+                uploadFileButton.disabled = true; // Disable upload button
+            }
+        });
+
+        // Event listener for uploading file metadata
+        uploadFileButton.addEventListener('click', async () => {
+            if (!selectedFile || !db || !currentUserId || !currentChatCollectionRef) return;
+
+            try {
+                await addDoc(currentChatCollectionRef, { // Use the current chat collection
+                    userId: currentUserId,
+                    fileName: selectedFile.name,
+                    fileType: selectedFile.type,
+                    fileSize: selectedFile.size,
+                    fileUrl: `https://placehold.co/100x50/000000/FFFFFF?text=${selectedFile.name.substring(0, Math.min(selectedFile.name.length, 10))}`,
+                    timestamp: serverTimestamp(),
+                });
+                selectedFile = null; // Clear selected file
+                fileInput.value = ''; // Clear file input field
+                uploadFileButton.disabled = true; // Disable upload button
+            } catch (error) {
+                console.error("Error uploading file metadata:", error);
+            }
+        });
+
+        // Event listener for starting private chat
+        startPrivateChatButton.addEventListener('click', () => {
+            const targetId = favoritePersonIdInput.value.trim();
+            if (targetId && targetId !== currentUserId) {
+                setupRealtimeListeners(targetId);
+            } else if (targetId === currentUserId) {
+                // Optionally show a message that they can't chat with themselves privately
+                console.warn("Cannot start private chat with yourself.");
+            } else {
+                // If input is empty, revert to public chat
+                setupRealtimeListeners(null);
+            }
+        });
+
+        // Event listener for clearing private chat and going back to public
+        clearPrivateChatButton.addEventListener('click', () => {
+            favoritePersonIdInput.value = ''; // Clear the input field
+            setupRealtimeListeners(null); // Switch back to public chat
+        });
+    </script>
+</body>
+</html>
